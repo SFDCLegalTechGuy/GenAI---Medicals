@@ -1,0 +1,11 @@
+{
+    "detail": {
+        "bucket": {
+            "name": "sh-raw-staging"
+        },
+        "object": {
+            "key": "a2VTV000000nmwL2AQ.pdf"
+        },
+        "documentType": "Procedures"
+    }
+}

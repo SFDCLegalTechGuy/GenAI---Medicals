@@ -1,0 +1,198 @@
+{
+  "StartAt": "StartWorkflowTask",
+  "States": {
+    "StartWorkflowTask": {
+      "Next": "DocumentExtractionTask",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "OutputPath": "$",
+      "ResultPath": "$.startWorkflowResult",
+      "Resource": "arn:aws:lambda:us-east-1:026090522987:function:shulmanStack-LambdasStartWorkflowLambdaE23F8DD3-9cPtClV2HT0T"
+    },
+    "DocumentExtractionTask": {
+      "Next": "StartTextractTask",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "OutputPath": "$.Payload",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-1:026090522987:function:shulmanStack-LambdasDocumentExtractionLambdaD054D8-cAW4PJUZVhHC",
+        "Payload.$": "$"
+      }
+    },
+    "StartTextractTask": {
+      "Next": "WaitForTextractJob",
+      "Type": "Task",
+      "ResultPath": "$.textractJobId",
+      "Resource": "arn:aws:states:::aws-sdk:textract:startDocumentAnalysis",
+      "Parameters": {
+        "DocumentLocation": {
+          "S3Object": {
+            "Bucket": "sh-raw-staging",
+            "Name.$": "$.body.file_name"
+          }
+        },
+        "FeatureTypes": [
+          "TABLES"
+        ],
+        "OutputConfig": {
+          "S3Bucket": "sh-textract-output",
+          "S3Prefix.$": "States.Format('textract-output/{}', $.body.file_name)"
+        }
+      }
+    },
+    "WaitForTextractJob": {
+      "Type": "Wait",
+      "Seconds": 30,
+      "Next": "GetTextractJobStatus"
+    },
+    "GetTextractJobStatus": {
+      "Next": "CheckTextractJobStatus",
+      "Type": "Task",
+      "ResultPath": "$.textractJobStatus",
+      "Resource": "arn:aws:states:::aws-sdk:textract:getDocumentAnalysis",
+      "Parameters": {
+        "JobId.$": "$.textractJobId.JobId",
+        "MaxResults": 1
+      }
+    },
+    "CheckTextractJobStatus": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.textractJobStatus.JobStatus",
+          "StringEquals": "SUCCEEDED",
+          "Next": "PrepareSuccessOutput"
+        },
+        {
+          "Variable": "$.textractJobStatus.JobStatus",
+          "StringEquals": "FAILED",
+          "Next": "JobFailed"
+        }
+      ],
+      "Default": "WaitForTextractJob"
+    },
+    "PrepareSuccessOutput": {
+      "Type": "Pass",
+      "Parameters": {
+        "processingResult": {
+          "textractJobId.$": "$.textractJobId.JobId",
+          "documentType.$": "$.body.documentType",
+          "documentId.$": "$.body.documentId",
+          "fileInfoId.$": "$.body.fileInfoId",
+          "treatmentId.$": "$.body.treatmentId",
+          "matterId.$": "$.body.matterId",
+          "bucket_name.$": "$.body.bucket_name",
+          "file_name.$": "$.body.file_name"
+        }
+      },
+      "Next": "ProcessingTask"
+    },
+    "ProcessingTask": {
+      "Next": "NotifyIBMAppConnectTask",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "InputPath": "$",
+      "OutputPath": "$.Payload",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-1:026090522987:function:shulmanStack-LambdasDataProcessingLambdaDACD3979-5hAwFy7ghzrJ",
+        "Payload.$": "$"
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "Next": "JobFailed",
+          "Comment": "Processing Task Failed"
+        }
+      ]
+    },
+    "NotifyIBMAppConnectTask": {
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "OutputPath": "$.Payload",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-1:026090522987:function:shulmanStack-LambdasIBMAppConnectNotificationLambd-nWYcQ2H07IG7",
+        "Payload.$": "$"
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "Comment": "Notify IBM App Connect Task Failed",
+          "Next": "JobFailed"
+        }
+      ],
+      "Next": "WasNotifyIBMAppConnectSuccess"
+    },
+    "WasNotifyIBMAppConnectSuccess": {
+      "Type": "Choice",
+      "Default": "JobFailed",
+      "Choices": [
+        {
+          "Variable": "$.statusCode",
+          "NumericEquals": 200,
+          "Next": "Success"
+        }
+      ]
+    },
+    "Success": {
+      "Type": "Succeed"
+    },
+    "JobFailed": {
+      "Type": "Fail"
+    }
+  }
+}

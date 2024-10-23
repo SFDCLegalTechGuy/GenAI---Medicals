@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "client-shulman-hill-tailwinds-appconnect"
+version = "0.1.0"
+description = "Innovative Solutions is developing an OCR-based system to streamline document summarization for Shulman & Hill. Utilizing serverless technology and event-driven architecture, the solution will facilitate sentiment analysis and seamless integration of summarized data into Salesforce custom output fields."
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.9"
+boto3 = "^1.18.0"
+requests = "^2.26.0"
+aws-cdk-lib = "^2.38.0"
+constructs = "^10.0.0"
+aws-cdk-aws-lambda-python-alpha = "^2.0.0a1"
+aiohttp = "^3.10.10"
+aws-xray-sdk = "^2.14.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
+black = "^21.7b0"
+flake8 = "^3.9.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

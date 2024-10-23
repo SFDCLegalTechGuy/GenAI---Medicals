@@ -1,0 +1,6 @@
+{
+    "StartWorkflow": {
+        "DOCUMENT_SOAP_TABLE_NAME": "sh-soap-table",
+        "STATE_MACHINE_ARN": "arn:aws:states:us-east-1:026090522987:stateMachine:DocumentProcessingWorkflow"
+    }
+}

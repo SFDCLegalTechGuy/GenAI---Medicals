@@ -1,0 +1,103 @@
+openapi: 3.0.0
+info:
+  title: Document Processing API
+  version: 1.0.0
+  description: API for initiating document processing workflows
+
+paths:
+  /process-document:
+    post:
+      summary: Start a document processing workflow
+      description: Initiates a new document processing workflow in the system
+      security:
+        - api_key: [BXmPX3nkgDaZCIMsVEHIJ1X9FPF9lMNI7135eus1]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowInput'
+      responses:
+        '200':
+          description: Workflow started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+        '400':
+          description: Bad request - missing or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-amazon-apigateway-integration:
+        uri: 
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${arn:aws:lambda:us-east-1:026090522987:function:shulmanStack-LambdasStartWorkflowLambdaE23F8DD3-9cPtClV2HT0T}/invocations
+        passthroughBehavior: when_no_match
+        httpMethod: POST
+        type: aws_proxy
+
+components:
+  securitySchemes:
+    api_key:
+      type: apiKey
+      name: x-api-key
+      in: header
+  schemas:
+    WorkflowInput:
+      type: object
+      required:
+        - documentId
+        - fileInfoId
+        - treatmentId
+        - matterId
+        - documentType
+      properties:
+        documentId:
+          type: string
+        fileInfoId:
+          type: string
+        treatmentId:
+          type: string
+        matterId:
+          type: string
+        documentType:
+          type: string
+          enum:
+            - PT/Chiro
+            - Providers
+            - Diagnostic Test
+            - Procedures
+            - Hospital/Urgent Care
+
+    WorkflowResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        executionArn:
+          type: string
+        input:
+          type: object
+          properties:
+            detail:
+              $ref: '#/components/schemas/WorkflowInput'
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        error:
+          type: string
+
+x-amazon-apigateway-binary-media-types:
+  - application/pdf
+  - image/jpeg
+  - image/png

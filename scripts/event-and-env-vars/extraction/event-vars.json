@@ -1,0 +1,8 @@
+{
+    "DocumentExtractionLambda": {
+        "LITIFY_DOC_ID_KEY": "a2VTV000000nmwL2AQ",
+        "RAW_STAGING_BUCKET_NAME": "sh-raw-staging",
+        "DOC_RIO_API_URL": "https://api.556079680729.genesisapi.com/v1/files",
+        "DOC_RIO_BEARER_TOKEN": "00D2E000000oF5K!AQEAQHvUNssOud5vIsmVNI7feTgX9qePx6gizp4wl.z.yJ4CV8bEfTC3XRVmBc9LsQ6ESXJ_RqIlXwWCIivaFz6lNr1Ezz95"
+    }
+}

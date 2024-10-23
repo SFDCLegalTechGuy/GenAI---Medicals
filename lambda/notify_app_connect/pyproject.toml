@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "notify-app-connect-lambda"
+version = "0.1.0"
+description = "Lambda function for notifying IBM AppConnect"
+authors = ["Josh Crosby <jcrosby@innovativesol.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+aiobotocore = "^2.5.0"
+aiohttp = "^3.10.10"
+requests = "^2.32.3"
+aws-xray-sdk = "^2.14.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

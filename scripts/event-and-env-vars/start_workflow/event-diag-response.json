@@ -1,0 +1,26 @@
+{
+    "statusCode": 200,
+    "body": "{\"message\": \"Medical document processed successfully\"}",
+    "outputS3BucketName": "sh-lambda-output",
+    "outputS3Key": "a2VTV000001CG8T2AW.pdf-organized-analysis.json",
+    "extractedData": {
+      "numberOfVisits": 1,
+      "impression": [
+        "There is straightening of the usual lordosis.",
+        "There is a posterior annular tear at the L5-S1 level characterized by high signal focus on the long TR sagittal images.",
+        "At L5-S1, there is a focal central disc herniation effacing the ventral epidural fat and encroaching on the thecal sac."
+      ],
+      "positiveFindings": true,
+      "numberofFractures": 0,
+      "numberofBulges": 0,
+      "numberofHerniations": 1,
+      "numberofTears": 1,
+      "radiculopathy": false,
+      "numberOfOtherPositiveFindings": 1
+    },
+    "documentType": "Diagnostic Test",
+    "sourceKey": "a2VTV000001CG8T2AW.pdf",
+    "processingTimestamp": "2024-10-09T15:55:36.393613",
+    "documentId": "a32TV000000jJ6ZYAU",
+    "fileInfoId": "a2VTV000001CG8T2AW"
+  }

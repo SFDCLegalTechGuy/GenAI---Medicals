@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <soapenv:Body>
+  <notifications xmlns="http://soap.sforce.com/2005/09/outbound">
+   <OrganizationId>00D2E000000oF5KUAU</OrganizationId>
+   <ActionId>04kTV000001AjCzYAK</ActionId>
+   <SessionId>00D2E000000oF5K!AQEAQP9TlqNJJBShABnOqgJQhBoG4whVfgAcSswicTUStptwukmncos0sLB4CS0_upbP6A6VuuvNYaczp65qS9FoAtU2b0gP</SessionId>
+   <EnterpriseUrl>https://shulman-hill.my.salesforce.com/services/Soap/c/61.0/00D2E000000oF5K</EnterpriseUrl>
+   <PartnerUrl>https://shulman-hill.my.salesforce.com/services/Soap/u/61.0/00D2E000000oF5K</PartnerUrl>
+   <Notification>
+    <Id>04lTV0000053a8wYAA</Id>
+    <sObject xsi:type="sf:Treatment_Custom__c" xmlns:sf="urn:sobject.enterprise.soap.sforce.com">
+     <sf:Id>a32TV000000jJ6XYAU</sf:Id>
+     <sf:File_Info_Id__c>a2VTV000001CFlt2AG</sf:File_Info_Id__c>
+     <sf:Record_Type_Name__c>Treatment_Custom</sf:Record_Type_Name__c>
+    </sObject>
+   </Notification>
+  </notifications>
+ </soapenv:Body>
+</soapenv:Envelope>
+
