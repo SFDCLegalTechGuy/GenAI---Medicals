@@ -112,7 +112,9 @@ async def async_lambda_handler(event, context):
             raise ValueError("Failed to start Textract job")
         logger.info(f"Started Textract job: {job_id}")
 
-        job_status = await wait_for_job_completion(job_id)
+        # So with these parameters, your function will wait a maximum of about 87.5 minutes (1 hour and 27.5 minutes) before timing out. 
+        # This should be sufficient for most Textract jobs, but you might want to verify this against your typical document processing times.
+        job_status = await wait_for_job_completion(job_id, max_attempts=180, delay=3)
         logger.info(f"Textract job completed with status: {job_status}")
         if job_status != 'SUCCEEDED':
             raise ValueError(f"Textract job failed or timed out. Final status: {job_status}")
@@ -186,17 +188,43 @@ def create_error_response(error: Exception) -> Dict[str, Any]:
         })
     }
 
-async def wait_for_job_completion(job_id: str, max_attempts: int = 60) -> str:
-    for _ in range(max_attempts):
-        response = textract_client.get_document_text_detection(JobId=job_id)
-        status = response['JobStatus']
-        
-        if status in ['SUCCEEDED', 'FAILED']:
-            return status
-        
-        await asyncio.sleep(5)
+async def wait_for_job_completion(job_id: str, max_attempts: int = 120, delay: int = 5) -> str:
+    """
+    Wait for a Textract job to complete with exponential backoff.
     
-    return 'TIMED_OUT'
+    Args:
+        job_id: The Textract job ID to monitor
+        max_attempts: Maximum number of polling attempts (default: 120)
+        delay: Initial delay between attempts in seconds (default: 5)
+    
+    Returns:
+        str: Final job status
+    
+    Raises:
+        ValueError: If job times out or fails
+    """
+    for attempt in range(max_attempts):
+        try:
+            response = textract_client.get_document_text_detection(JobId=job_id)
+            status = response['JobStatus']
+            
+            if status == 'SUCCEEDED':
+                return status
+            elif status == 'FAILED':
+                error_message = response.get('StatusMessage', 'No error message provided')
+                raise ValueError(f"Textract job failed: {error_message}")
+            
+            # Exponential backoff with max delay of 30 seconds
+            wait_time = min(delay * (1.5 ** attempt), 30)
+            logger.info(f"Job {job_id} still in progress. Attempt {attempt + 1}/{max_attempts}. "
+                       f"Waiting {wait_time:.1f} seconds...")
+            await asyncio.sleep(wait_time)
+            
+        except ClientError as e:
+            logger.error(f"AWS API error while checking job status: {str(e)}")
+            raise
+    
+    raise ValueError(f"Textract job timed out after {max_attempts} attempts")
 
 async def get_textract_results(job_id: str) -> List[Dict[str, Any]]:
     pages = []
@@ -234,21 +262,25 @@ async def process_data_with_claude(combined_text: str, src_key: str, document_ty
     system_prompt = """You are a medical document processor trained in extracting information from medical documents. Use the provided Textract OCR results to extract the data accurately and concisely."""
 
     document_prompts = {
-            "PT/Chiro": """Extract the following information:
-- history: The patients account of what they verbally told the provider. Reason for visit, history of present illness, cause of injury (Limit to 1-2 sentences). If they are bulleted or numbered, please keep them numbered in the response. (e.g "history": ["1. He is complaining of low back pain. ", "2. He is also complaining of neck pain."]) {"value": array of strings}
-- chiefComplaints: What the client complained about in regards to their injury (Limit to 1-2 sentences). If they are bulleted or numbered, please keep them numbered in the response. {"value": string}
+            "PT/Chiro": """Extract the following information and DO NOT be repetitive:
+- history: The patients account of what they verbally told the provider. Summarize the history of present illness from the many vistis, and cause of injury (Limit to 1-2 sentences, do not be repetive). {"value": string}
+- chiefComplaints: What the client complained about in regards to their injury (bulleted list of strings). Please use bulleted list <li></li> tags in the response. (e.g. "chiefComplaints": "<ul><li>First complaint description</li><li>Second complaint description</li><li>Third complaint description</li></ul>") {"value": "<ul><li>string</li></ul>"}
 - numberOfVisits: Total count of visits to the provider. {"value": number}
-- impression: The provider's diagnosis and interpretation of the patient's condition based on their exam or diagnostic test (Limit to 1-2 sentences). If they are bulleted or numbered, please keep them numbered in the response. (e.g "impression": []"1. The patient has a fracture of the left leg", "2. The patient has a fracture of the right leg"],) {"value": array of strings}
-- recommendations: Recommendations based on treatment. If applicable, select ONE of the available values: Physical Therapy, Diagnostic Testing, Injections, Surgery {"value": string}""",
-            "Provider": """Extract the following information:
-- history: The patients account of what they verbally told the provider. Reason for visit, history of present illness, cause of injury (Limit to 1-2 sentences). If they are bulleted or numbered, please keep them numbered in the response. (e.g "history": ["1. He is complaining of low back pain. ", "2. He is also complaining of neck pain."]) {"value": array of strings}
-- chiefComplaints: What the client complained about in regards to their injury (Limit to 1-2 sentences). If they are bulleted or numbered, please keep them numbered in the response. {"value": string}
+- impression: The provider's diagnosis and interpretation of the patient's condition based on their exam or diagnostic test (bulleted list of strings). Please use bulleted list <li></li> tags in the response. (e.g "impression": "<ul><li>The patient has a fracture of the left leg</li><li>The patient has a fracture of the right leg.</li></ul>") {"value": "<ul><li>string</li></ul>"}
+- recommendations: Recommendations based on treatment. Important, only select ONE of the available string values: Physical Therapy, Diagnostic Testing, Injections, Surgery. {"value": string}""",
+            "Provider": """Extract the following information and DO NOT be repetitive:
+- history: The patients account of what they verbally told the provider. Summarize the history of present illness from the many vistis, and cause of injury (Limit to 1-2 sentences, do not be repetive).{"value": strings}
+- chiefComplaints: What the client complained about in regards to their injury (bulleted list of strings). Please use bulleted list <li></li> tags in the response. (e.g. "chiefComplaints": "<ul><li>First complaint description</li><li>Second complaint description</li><li>Third complaint description</li></ul>") {"value": "<ul><li>string</li></ul>"}
 - numberOfVisits: Total count of visits to the provider. The default value is 0. {"value": number}
-- examFindings: The physical exam findings throughout the chronology of the visits. Summary based on current physical exam and the clients condition (Limit to 4-6 sentences) {"value": string}
-- impression: The provider's diagnosis and interpretation of the patient's condition based on their exam or diagnostic test (Limit to 1-2 sentences). If they are bulleted or numbered, please keep them numbered in the response. (e.g "impression": ["1. The patient has a fracture of the left leg", "2. The patient has a fracture of the right leg"],) {"value": array of strings}
-- recommendations: Recommendations based on treatment. If applicable, select ONE of the available values: Physical Therapy, Diagnostic Testing, Injections, Surgery. {"value": string}
+- examFindings: The physical exam findings throughout the chronology of the visits. Summary based on current physical exam and the clients condition (Limit to 4-6 sentences). If a list of sentences are provided, please wrap them inordered list <li></li> tags in the response. (e.g. "examFindings": ["<ul><li>Finding 1</li><li>Finding 2</li>Finding 3</li></ul>"]) {"value": "<ul><li>string</li></ul>"}
+- impression: The provider's diagnosis and interpretation of the patient's condition based on their exam or diagnostic test (bulleted list of strings). Please use bulleted list <li></li> tags in the response. (e.g "impression": "<ul><li>The patient has a fracture of the left leg</li><li>The patient has a fracture of the right leg.</li></ul>") {"value": "<ul><li>string</li></ul>"}
+- recommendations: Recommendations based on treatment. Important, onlyselect ONE of the available string values: Physical Therapy, Diagnostic Testing, Injections, Surgery. {"value": string}
 - surgeryRecommended: If surgery is recommended next course of treatment then true else false. The default value is false. {"value": boolean}
 - injectionRecommended: If injections are recommended next course of treatment then true else false. The default value is false. {"value": boolean}
+- numberOfOtherPositiveFindings: Count of unique findings that are NOT fractures, bulges, herniations, or tears. The default value is 0. {"value": number}""",
+            "Diagnostic Test": """Extract the following information and DO NOT be repetitive:
+- numberOfVisits: Total count of visits to the provider. The default value is 0. {"value": number}
+- impression: The provider's diagnosis and interpretation of the patient's condition based on their exam or diagnostic test (bulleted list of strings). Please use bulleted list <li></li> tags in the response.. (e.g "impression": "<ul><li>The patient has a fracture of the left leg</li><li>The patient has a fracture of the right leg.</li></ul>") {"value": "<ul><li>string</li></ul>"}
 - positiveFindings: If a positive finding of fractures, bulges, herniations,or tears exist then true else false. The default value is false. {"value": boolean}
 - numberofFractures: Count of unique fractures in findings. The default value is 0. {"value": number}
 - numberofBulges: Count of unique bulges in findings. The default value is 0. {"value": number}
@@ -256,41 +288,28 @@ async def process_data_with_claude(combined_text: str, src_key: str, document_ty
 - numberofTears: Count of unique tears in findings. The default value is 0. {"value": number}
 - radiculopathy: If Radiculopathy exists in findings then true else false. The default value is false. {"value": boolean}
 - numberOfOtherPositiveFindings: Count of unique findings that are NOT fractures, bulges, herniations, or tears. The default value is 0. {"value": number}""",
-            "Diagnostic Test": """Extract the following information:
+            "Procedures": """Extract the following information and DO NOT be repetitive:
 - numberOfVisits: Total count of visits to the provider. The default value is 0. {"value": number}
-- impression: The provider's diagnosis and interpretation of the patient's condition based on their exam or diagnostic test (Limit to 1-2 sentences). If they are bulleted or numbered, please keep them numbered in the response. (e.g "impression": ["1. The patient has a fracture of the left leg", "2. The patient has a fracture of the right leg"],) {"value": array of strings}
-- positiveFindings: If a positive finding of fractures, bulges, herniations,or tears exist then true else false. The default value is false. {"value": boolean}
-- numberofFractures: Count of unique fractures in findings. The default value is 0. {"value": number}
-- numberofBulges: Count of unique bulges in findings. The default value is 0. {"value": number}
-- numberofHerniations: Count of unique herniations in findings. The default value is 0. {"value": number}
-- numberofTears: Count of unique tears in findings. The default value is 0. {"value": number}
-- radiculopathy: If Radiculopathy exists in findings then true else false. The default value is false. {"value": boolean}
-- numberOfOtherPositiveFindings: Count of unique findings that are NOT fractures, bulges, herniations, or tears. The default value is 0. {"value": number}""",
-            "Procedures": """Extract the following information:
-- numberOfVisits: Total count of visits to the provider. The default value is 0. {"value": number}
-- preOpDiagnosis: The medical condition identified before surgery that requires the surgical procedure (list of strings). If they are bulleted or numbered, please keep them numbered in the response. If there is no pre-op diagnosis, us "N/A" {"value": [string]}
-- postOpDiagnosis: The confirmed medical condition after surgery, often refined with additional findings from the operation (list of strings). If they are bulleted or numbered, please keep them numbered in the response. If there is no post-op diagnosis, us "N/A" {"value": [string]}
-- procedurePerformed: The specific surgical procedure carried out to address the diagnosed medical condition. The default value is an empty array. If they are bulleted or numbered, please keep them numbered in the response. If there is no procedure performed, use "N/A" {"value": [string]}""",
-            "Hospital/Urgent Care": """Extract the following information:
-- history: The patients account of what they verbally told the provider. Reason for visit, history of present illness, cause of injury (Limit to 1-2 sentences). If they are bulleted or numbered, please keep them numbered in the response. (e.g "history": ["1. He is complaining of low back pain. ", "2. He is also complaining of neck pain."]) {"value": array of strings}
-- chiefComplaints: What the client complained about in regards to their injury (Limit to 1-2 sentences). If they are bulleted or numbered, please keep them numbered in the response. {"value": string}
-- impression: The provider's diagnosis and interpretation of the patient's condition based on their exam or diagnostic test (Limit to 1-2 sentences). If they are bulleted or numbered, please keep them numbered in the response. (e.g "impression": []"1. The patient has a fracture of the left leg", "2. The patient has a fracture of the right leg"],) {"value": array of strings}
+- preOpDiagnosis: The medical condition identified before surgery that requires the surgical procedure (bulleted list of strings). Please use bulleted list <li></li> tags in the response. If there is no pre-op diagnosis, use "N/A" {"value": "<ul><li>string</li></ul>"}
+- postOpDiagnosis: The confirmed medical condition after surgery, often refined with additional findings from the operation (bulleted list of strings). Please use bulleted list <li></li> tags in the response. If there is no post-op diagnosis, use "N/A" {"value": "<ul><li>string</li></ul>"}
+- procedurePerformed: The specific surgical procedure carried out to address the diagnosed medical condition. The default value is an empty array. If there are procedures performed, please use bulleted list <li></li> tags in the response. If there is no procedure performed, use "N/A" {"value": "<ul><li>string</li></ul>"}""",
+            "Hospital/Urgent Care": """Extract the following information and DO NOT be repetitive:
+- history: The patients account of what they verbally told the provider. Summarize the history of present illness from the many vistis, and cause of injury (Limit to 1-2 sentences, do not be repetive). {"value": string}
+- chiefComplaints: What the client complained about in regards to their injury (bulleted list of strings). Please use bulleted list <li></li> tags in the response. (e.g. "chiefComplaints": "<ul><li>First complaint description</li><li>Second complaint description</li><li>Third complaint description</li></ul>") {"value": "<ul><li>string</li></ul>"}
+- impression: The provider's diagnosis and interpretation of the patient's condition based on their exam or diagnostic test (bulleted list of strings). Please use bulleted list <li></li> tags in the response. (e.g "impression": "<ul><li>The patient has a fracture of the left leg</li><li>The patient has a fracture of the right leg.</li></ul>") {"value": "<ul><li>string</li></ul>"}
 - surgeryRecommended: If surgery is recommended next course of treatment then true else false. The default value is false. {"value": boolean}
 - injectionRecommended: If injections are recommended next course of treatment then true else false. The default value is false. {"value": boolean}
-- positiveFindings: If a positive finding of fractures, bulges, herniations,or tears exist then true else false. The default value is false. {"value": boolean}
-- numberofFractures: Count of unique fractures in findings. The default value is 0. {"value": number}
-- numberofBulges: Count of unique bulges in findings. The default value is 0. {"value": number}
-- numberofHerniations: Count of unique herniations in findings. The default value is 0. {"value": number}
-- numberofTears: Count of unique tears in findings. The default value is 0. {"value": number}
 - radiculopathy: If Radiculopathy exists in findings then true else false. The default value is false. {"value": boolean}"""
         }
 
     user_prompt = f"""
     {document_prompts[document_type]}
 
-    Respond with a JSON object containing the extracted information, matching the structure and data types specified above. Please do not include the "value" key in the response of the JSON object. Do not return "history": {{"value": "This is the history"}}, instead return the value with out the "value" key e.g. {{"history": "This is the history"}}.
-    Also important, do not create new keys outside of the ones specified (e.g. do not create {{ "1": "Physical Therapy", "2": "Surgery" }} it must be {{ "recommendations": 'Physical Therapy', 'Surgery'}}), the keys must be the same as the ones specified in the prompt.
-    Wrap the JSON object in <extracted_data> tags. If you cannot find the requested information, return an empty JSON object with null values. Do not include any other content in your response. Please ensure that JSON is valid and all fields are present."""
+Do NOT be repetitive in any of your answers. Respond with a JSON object containing the extracted information, matching the structure and data types specified above and follow the instructions in the prompt.
+Some of the items will return a list of strings, please use an unorderded bulleted list <li></li> tags in the response.(e.g. "impression": "<ul><li>The patient has a fracture of the left leg</li><li>The patient has a fracture of the right leg.</li></ul>") {{"value": "<ul><li>string</li></ul>"}}
+Please do not include the "value" key in the response of the JSON object. Do not return "history": {{"value": "This is the history"}}, instead return the value with out the "value" key e.g. {{"history": "This is the history"}}.
+Also important, do not create new keys outside of the ones specified (e.g. do not create {{ "1": "Physical Therapy", "2": "Surgery" }} it must be {{ "recommendations": 'Physical Therapy', 'Surgery'}}), the keys must be the same as the ones specified in the prompt.
+Wrap the JSON object in <extracted_data> tags. If you cannot find the requested information, return an empty JSON object with null values. Do not include any other content in your response. Please ensure that JSON is valid and all fields are present."""
 
     extraction_response = await invoke_claude_converse(system_prompt, user_prompt, combined_text)
     extracted_json_str = await extract_tagged_content(extraction_response, 'extracted_data')
@@ -330,9 +349,10 @@ async def invoke_claude_converse(system_prompt: str, user_prompt: str, textract_
 
         request_body = json.dumps({
             "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1100,
-            "temperature": 0.5,
-            "top_p": 0.99,
+            "max_tokens": 4096,
+            "temperature": 0.2,
+            "top_p": 0.999,
+            "top_k": 250,
             "messages": messages
         })
         
