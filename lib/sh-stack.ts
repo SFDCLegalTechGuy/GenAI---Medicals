@@ -51,6 +51,7 @@ export class SHStack extends cdk.Stack {
                     authUrl: process.env.DOC_RIO_AUTH_URL!,
                     clientId: process.env.DOC_RIO_CLIENT_ID!,
                     clientSecret: process.env.DOC_RIO_CLIENT_SECRET!,
+                    apiKey: process.env.DOC_RIO_API_KEY!,
                 },
             });
 

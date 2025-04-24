@@ -37,6 +37,7 @@ export interface LambdaConstructProps {
         apiUrl: string;
         clientId: string;
         clientSecret: string;
+        apiKey: string;
     };
 }
 
@@ -77,6 +78,7 @@ export class LambdaConstruct extends Construct {
             DOC_RIO_API_URL: props.docRio.apiUrl,
             DOC_RIO_CLIENT_ID: props.docRio.clientId,
             DOC_RIO_CLIENT_SECRET: props.docRio.clientSecret,
+            DOC_RIO_API_KEY: props.docRio.apiKey,
             IBM_APPCONNECT_URL: props.ibmAppConnect.url,
             IBM_APPCONNECT_USERNAME: props.ibmAppConnect.username,
             IBM_APPCONNECT_PASSWORD: props.ibmAppConnect.password,
