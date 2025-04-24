@@ -17,6 +17,7 @@ DOC_RIO_API_URL = os.environ["DOC_RIO_API_URL"]
 DOC_RIO_AUTH_URL = os.environ["DOC_RIO_AUTH_URL"]
 DOC_RIO_CLIENT_ID = os.environ["DOC_RIO_CLIENT_ID"]
 DOC_RIO_CLIENT_SECRET = os.environ["DOC_RIO_CLIENT_SECRET"]
+DOC_RIO_API_KEY = os.environ["DOC_RIO_API_KEY"]
 
 IBM_APPCONNECT_URL = os.environ['IBM_APPCONNECT_URL']
 IBM_APPCONNECT_USERNAME = os.environ['IBM_APPCONNECT_USERNAME']
@@ -135,7 +136,8 @@ async def async_lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str,
         # Make API request to get SignedUrlV2
         headers = {
             'accept': 'application/json',
-            'Authorization': f'Bearer {bearer_token}'
+            'Authorization': f'Bearer {bearer_token}',
+            'x-api-key': DOC_RIO_API_KEY
         }
         params = {'Id': file_info_id}
         async with aiohttp.ClientSession() as session:

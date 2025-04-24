@@ -1,0 +1,45 @@
+# python generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# venv
+.venv
+
+# TypeScript and CDK generated files
+*.tsbuildinfo
+/*.js
+/*.js.map
+/*.d.ts
+node_modules/
+dist/
+build/
+coverage/
+*.tgz
+*.log
+*.lock
+cdk.out/
+
+# Private TODOs
+SNS_TODO.md
+TODO.md
+
+# Exclude .js and .d.ts files in subdirectories
+*/**/*.js
+*/**/*.d.ts
+
+# AWS CDK files
+*.template.json
+
+# Local environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env
+data
+example.ipynb
+ignore_tests/
